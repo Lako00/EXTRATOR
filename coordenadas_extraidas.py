@@ -1,0 +1,171 @@
+import streamlit as st
+import zipfile
+import xml.etree.ElementTree as ET
+import re
+import folium
+from simplekml import Kml
+from io import BytesIO
+
+# ============================================
+# Funções de conversão e processamento
+# ============================================
+
+def gms_to_decimal(gms_str):
+    match = re.match(r"(-?\d+)°(\d+)'([\d\.]+)\"?", gms_str.strip(), re.IGNORECASE)
+    if not match:
+        raise ValueError(f"Formato inválido: {gms_str}")
+    graus, minutos, segundos = map(float, match.groups())
+    decimal = abs(graus) + (minutos / 60) + (segundos / 3600)
+    return -decimal if graus < 0 else decimal
+
+def decimal_to_gms(coord, is_latitude=True):
+    abs_val = abs(coord)
+    graus = int(abs_val)
+    minutos = int((abs_val - graus) * 60)
+    segundos = (abs_val - graus - minutos / 60) * 3600
+    sinal = "-" if coord < 0 else ""
+    return f"{sinal}{graus}°{minutos:02d}'{segundos:.2f}\""
+
+# ============================================
+# Gerenciamento de estado
+# ============================================
+if 'coordinates' not in st.session_state:
+    st.session_state.coordinates = []
+
+def adicionar_coordenadas_manual(texto):
+    linhas = texto.strip().split("\n")
+    errors = []
+    for linha in linhas:
+        partes = linha.strip().split()
+        if len(partes) < 2:
+            errors.append(f"Formato inválido na linha: {linha}")
+            continue
+        try:
+            lat_gms, lon_gms = partes[:2]
+            lat_decimal = gms_to_decimal(lat_gms)
+            lon_decimal = gms_to_decimal(lon_gms)
+            st.session_state.coordinates.append((lat_decimal, lon_decimal))
+        except Exception as e:
+            errors.append(f"Erro na linha: {linha} - {e}")
+    return errors
+
+def limpar():
+    st.session_state.coordinates = []
+
+def gerar_poligono():
+    if not st.session_state.coordinates:
+        st.error("Nenhuma coordenada inserida.")
+        return None
+    lat_media = sum(lat for lat, lon in st.session_state.coordinates) / len(st.session_state.coordinates)
+    lon_media = sum(lon for lat, lon in st.session_state.coordinates) / len(st.session_state.coordinates)
+    mapa = folium.Map(location=[lat_media, lon_media], zoom_start=15)
+    folium.Polygon(locations=st.session_state.coordinates, color="blue", fill=True, fill_opacity=0.4).add_to(mapa)
+    return mapa
+
+def exportar_kmz():
+    if not st.session_state.coordinates:
+        st.error("Nenhuma coordenada inserida para exportação.")
+        return None
+    kml = Kml()
+    pol = kml.newpolygon(name="Polígono")
+    coords_kml = [(lon, lat, 0) for lat, lon in st.session_state.coordinates]
+    if coords_kml[0] != coords_kml[-1]:
+        coords_kml.append(coords_kml[0])
+    pol.outerboundaryis = coords_kml
+    kmz_buffer = BytesIO()
+    kml.savekmz(kmz_buffer)
+    kmz_buffer.seek(0)
+    return kmz_buffer
+
+def carregar_kml_kmz(uploaded_file):
+    if uploaded_file is None:
+        return "Nenhum arquivo enviado."
+    coordenadas_extraidas = []
+    try:
+        if uploaded_file.name.endswith(".kmz"):
+            with zipfile.ZipFile(uploaded_file, "r") as kmz:
+                kml_file = [f for f in kmz.namelist() if f.endswith(".kml")][0]
+                with kmz.open(kml_file) as kml:
+                    tree = ET.parse(kml)
+        else:
+            tree = ET.parse(uploaded_file)
+        root = tree.getroot()
+        ns = {"kml": "http://www.opengis.net/kml/2.2"}
+        for placemark in root.findall(".//kml:Placemark", ns):
+            for polygon in placemark.findall(".//kml:Polygon", ns):
+                for outer in polygon.findall(".//kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", ns):
+                    coord_text = outer.text.strip()
+                    coords = coord_text.split()
+                    for coord in coords:
+                        lon, lat, *_ = map(float, coord.split(","))
+                        coordenadas_extraidas.append((lat, lon))
+        if len(coordenadas_extraidas) > 1 and coordenadas_extraidas[0] == coordenadas_extraidas[-1]:
+            coordenadas_extraidas.pop()
+        st.session_state.coordinates = coordenadas_extraidas
+        return "Coordenadas extraídas com sucesso!"
+    except Exception as e:
+        return f"Erro ao carregar o arquivo KML/KMZ: {e}"
+
+# ============================================
+# Interface com Menu Lateral (Sidebar)
+# ============================================
+st.sidebar.title("Menu")
+menu = st.sidebar.radio("Escolha a operação:", 
+                        ["Inserção Manual", "Carregar Arquivo", "Gerar Polígono", "Exportar KMZ", "Limpar Coordenadas"])
+
+st.title("Extrator de Coordenadas KML/KMZ")
+
+if menu == "Inserção Manual":
+    st.header("Inserção Manual de Coordenadas")
+    texto = st.text_area("Insira múltiplas coordenadas (ex: -24°01'37.72\" -49°21'42.51\")")
+    if st.button("Adicionar Coordenadas Manualmente"):
+        erros = adicionar_coordenadas_manual(texto)
+        if erros:
+            for erro in erros:
+                st.error(erro)
+        else:
+            st.success("Coordenadas adicionadas com sucesso!")
+    st.write("**Coordenadas Atuais:**")
+    if st.session_state.coordinates:
+        for i, (lat, lon) in enumerate(st.session_state.coordinates, 1):
+            st.write(f"{i}. {decimal_to_gms(lat)} {decimal_to_gms(lon, is_latitude=False)}")
+    else:
+        st.info("Nenhuma coordenada registrada.")
+
+elif menu == "Carregar Arquivo":
+    st.header("Carregar Arquivo KML/KMZ")
+    uploaded_file = st.file_uploader("Carregar arquivo", type=["kml", "kmz"])
+    if uploaded_file is not None:
+        mensagem = carregar_kml_kmz(uploaded_file)
+        if "sucesso" in mensagem.lower():
+            st.success(mensagem)
+        else:
+            st.error(mensagem)
+        st.write("**Coordenadas Extraídas:**")
+        if st.session_state.coordinates:
+            for i, (lat, lon) in enumerate(st.session_state.coordinates, 1):
+                st.write(f"{i}. {decimal_to_gms(lat)} {decimal_to_gms(lon, is_latitude=False)}")
+        else:
+            st.info("Nenhuma coordenada registrada.")
+
+elif menu == "Gerar Polígono":
+    st.header("Gerar Polígono")
+    if st.button("Gerar Polígono"):
+        mapa = gerar_poligono()
+        if mapa:
+            mapa_html = mapa._repr_html_()
+            st.components.v1.html(mapa_html, height=500)
+
+elif menu == "Exportar KMZ":
+    st.header("Exportar KMZ")
+    if st.button("Exportar KMZ"):
+        kmz_buffer = exportar_kmz()
+        if kmz_buffer:
+            st.download_button(label="Download KMZ", data=kmz_buffer, file_name="poligono.kmz", mime="application/vnd.google-earth.kmz")
+
+elif menu == "Limpar Coordenadas":
+    st.header("Limpar Coordenadas")
+    if st.button("Limpar Coordenadas"):
+        limpar()
+        st.success("Coordenadas limpas!")
+
