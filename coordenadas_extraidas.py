@@ -164,16 +164,95 @@ def extrator():
             limpar()
             st.success("Coordenadas limpas!")
 
-# ============================================
-# Código do Formulário RIT
-# ============================================
+import streamlit as st
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
+import datetime
 
+# --------------------------------------------
+# Função para gerar o PDF do RIT
+# --------------------------------------------
+def gerar_pdf_rit(
+    rit_num, data, opm, municipio, tipo_area, endereco, numeral, complemento, 
+    ponto_referencia, latitude_acesso, documento_referencia, auto_referencia, 
+    numero_car, autorizacoes, tipo_bioma, embargo, area, fontes_dados, 
+    escala, centroide_lat, centroide_lon, fonte, analise
+):
+    # Cria um buffer em memória para receber o PDF
+    buffer = BytesIO()
+
+    # Define o objeto Canvas, passando o buffer e o tamanho da página
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4  # Largura e altura da página A4
+
+    # Exemplo de título
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 50, "Relatório de Informações Técnicas (RIT)")
+
+    # Exemplo de dados do formulário
+    c.setFont("Helvetica", 10)
+    linha_atual = height - 80  # posição vertical inicial
+
+    # Helper para escrever texto linha a linha
+    def escreve_campo(label, valor):
+        nonlocal linha_atual
+        c.drawString(50, linha_atual, f"{label}: {valor}")
+        linha_atual -= 15  # avança uma linha
+
+    escreve_campo("RIT Nº", rit_num)
+    escreve_campo("Data", str(data))
+    escreve_campo("OPM", opm)
+    escreve_campo("Município", municipio)
+    escreve_campo("Tipo de Área", tipo_area)
+    escreve_campo("Endereço", endereco)
+    escreve_campo("Número", numeral)
+    escreve_campo("Complemento", complemento)
+    escreve_campo("Ponto de Referência", ponto_referencia)
+    escreve_campo("Latitude do Acesso", latitude_acesso)
+    escreve_campo("Documento de Referência", documento_referencia)
+    escreve_campo("Auto de Referência (Data/Hora Serviço)", auto_referencia)
+    escreve_campo("Número do CAR", numero_car)
+    escreve_campo("Autorizações", autorizacoes)
+    escreve_campo("Tipo de Bioma", tipo_bioma)
+    escreve_campo("Embargo Imposto na Área", embargo)
+    escreve_campo("Área (ha)", str(area))
+    escreve_campo("Fontes de Dados", fontes_dados)
+    escreve_campo("Escala", escala)
+    escreve_campo("Centróide (Latitude)", centroide_lat)
+    escreve_campo("Centróide (Longitude)", centroide_lon)
+    escreve_campo("Fonte", fonte)
+
+    # Quebra de linha para a análise
+    linha_atual -= 10
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, linha_atual, "Análise:")
+    linha_atual -= 15
+    c.setFont("Helvetica", 10)
+
+    # Se a análise for muito longa, você precisará lidar com a quebra de texto;
+    # Aqui faremos algo simples
+    for linha in analise.split("\n"):
+        c.drawString(60, linha_atual, linha)
+        linha_atual -= 12
+
+    # Finaliza a página
+    c.showPage()
+    c.save()
+
+    # Retorna o buffer em posição inicial
+    buffer.seek(0)
+    return buffer
+
+# --------------------------------------------
+# Formulário RIT com botão "Gerar PDF"
+# --------------------------------------------
 def formulario_rit():
     st.header("Formulário de Relatório de Informações Técnicas (RIT)")
 
     # Cabeçalho
     rit_num = st.text_input("RIT Nº")
-    data = st.date_input("Data")
+    data = st.date_input("Data", datetime.date.today())
 
     # Referência
     st.subheader("Referência")
@@ -184,7 +263,7 @@ def formulario_rit():
     numeral = st.text_input("Número")
     complemento = st.text_input("Complemento")
     ponto_referencia = st.text_input("Ponto de Referência")
-    latitude = st.text_input("Latitude do Acesso")
+    latitude_acesso = st.text_input("Latitude do Acesso")
     documento_referencia = st.text_input("Documento de Referência")
     auto_referencia = st.text_input("Auto de Referência (Data/Hora Serviço)")
     numero_car = st.text_input("Número do CAR")
@@ -208,19 +287,32 @@ def formulario_rit():
     st.subheader("Análise")
     analise = st.text_area("Insira sua análise")
 
-    if st.button("Enviar"):
-        st.success("Formulário enviado!")
+    # Em vez de "Enviar", criamos um botão "Gerar PDF"
+    if st.button("Gerar PDF"):
+        # Gera o PDF com os dados do formulário
+        pdf_buffer = gerar_pdf_rit(
+            rit_num, data, opm, municipio, tipo_area, endereco, numeral, 
+            complemento, ponto_referencia, latitude_acesso, documento_referencia, 
+            auto_referencia, numero_car, autorizacoes, tipo_bioma, embargo, area, 
+            fontes_dados, escala, centroide_lat, centroide_lon, fonte, analise
+        )
+        # Exibe um botão para download do PDF
+        st.download_button(
+            label="Baixar PDF",
+            data=pdf_buffer,
+            file_name="rit.pdf",
+            mime="application/pdf"
+        )
+        st.success("PDF gerado com sucesso!")
 
-# ============================================
-# Função principal com navegação no sidebar
-# ============================================
+# --------------------------------------------
+# Exemplo de main()
+# --------------------------------------------
 def main():
     st.sidebar.title("Navegação")
-    opcao = st.sidebar.radio("Escolha uma opção:", ["Extrator", "RIT"])
+    opcao = st.sidebar.radio("Escolha uma opção:", ["RIT"])
 
-    if opcao == "Extrator":
-        extrator()
-    elif opcao == "RIT":
+    if opcao == "RIT":
         formulario_rit()
 
 if __name__ == "__main__":
