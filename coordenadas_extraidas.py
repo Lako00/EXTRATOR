@@ -7,7 +7,7 @@ from simplekml import Kml
 from io import BytesIO
 
 # ============================================
-# Funções de conversão e processamento
+# Código do Extrator (não alterado)
 # ============================================
 
 def gms_to_decimal(gms_str):
@@ -26,9 +26,7 @@ def decimal_to_gms(coord, is_latitude=True):
     sinal = "-" if coord < 0 else ""
     return f"{sinal}{graus}°{minutos:02d}'{segundos:.2f}\""
 
-# ============================================
-# Gerenciamento de estado
-# ============================================
+# Gerenciamento de estado para o extrator
 if 'coordinates' not in st.session_state:
     st.session_state.coordinates = []
 
@@ -106,66 +104,124 @@ def carregar_kml_kmz(uploaded_file):
     except Exception as e:
         return f"Erro ao carregar o arquivo KML/KMZ: {e}"
 
-# ============================================
-# Interface com Menu Lateral (Sidebar)
-# ============================================
-st.sidebar.title("Menu")
-menu = st.sidebar.radio("Escolha a operação:", 
+# Função para o submenu do Extrator
+def extrator():
+    st.header("Extrator de Coordenadas KML/KMZ")
+    operacao = st.radio("Escolha a operação:", 
                         ["Inserção Manual", "Carregar Arquivo", "Gerar Polígono", "Exportar KMZ", "Limpar Coordenadas"])
 
-st.title("Extrator de Coordenadas KML/KMZ")
-
-if menu == "Inserção Manual":
-    st.header("Inserção Manual de Coordenadas")
-    texto = st.text_area("Insira múltiplas coordenadas (ex: -24°01'37.72\" -49°21'42.51\")")
-    if st.button("Adicionar Coordenadas Manualmente"):
-        erros = adicionar_coordenadas_manual(texto)
-        if erros:
-            for erro in erros:
-                st.error(erro)
-        else:
-            st.success("Coordenadas adicionadas com sucesso!")
-    st.write("**Coordenadas Atuais:**")
-    if st.session_state.coordinates:
-        for i, (lat, lon) in enumerate(st.session_state.coordinates, 1):
-            st.write(f"{i}. {decimal_to_gms(lat)} {decimal_to_gms(lon, is_latitude=False)}")
-    else:
-        st.info("Nenhuma coordenada registrada.")
-
-elif menu == "Carregar Arquivo":
-    st.header("Carregar Arquivo KML/KMZ")
-    uploaded_file = st.file_uploader("Carregar arquivo", type=["kml", "kmz"])
-    if uploaded_file is not None:
-        mensagem = carregar_kml_kmz(uploaded_file)
-        if "sucesso" in mensagem.lower():
-            st.success(mensagem)
-        else:
-            st.error(mensagem)
-        st.write("**Coordenadas Extraídas:**")
+    if operacao == "Inserção Manual":
+        st.subheader("Inserção Manual de Coordenadas")
+        texto = st.text_area("Insira múltiplas coordenadas (ex: -24°01'37.72\" -49°21'42.51\")")
+        if st.button("Adicionar Coordenadas Manualmente"):
+            erros = adicionar_coordenadas_manual(texto)
+            if erros:
+                for erro in erros:
+                    st.error(erro)
+            else:
+                st.success("Coordenadas adicionadas com sucesso!")
+        st.write("**Coordenadas Atuais:**")
         if st.session_state.coordinates:
             for i, (lat, lon) in enumerate(st.session_state.coordinates, 1):
                 st.write(f"{i}. {decimal_to_gms(lat)} {decimal_to_gms(lon, is_latitude=False)}")
         else:
             st.info("Nenhuma coordenada registrada.")
 
-elif menu == "Gerar Polígono":
-    st.header("Gerar Polígono")
-    if st.button("Gerar Polígono"):
-        mapa = gerar_poligono()
-        if mapa:
-            mapa_html = mapa._repr_html_()
-            st.components.v1.html(mapa_html, height=500)
+    elif operacao == "Carregar Arquivo":
+        st.subheader("Carregar Arquivo KML/KMZ")
+        uploaded_file = st.file_uploader("Carregar arquivo", type=["kml", "kmz"])
+        if uploaded_file is not None:
+            mensagem = carregar_kml_kmz(uploaded_file)
+            if "sucesso" in mensagem.lower():
+                st.success(mensagem)
+            else:
+                st.error(mensagem)
+            st.write("**Coordenadas Extraídas:**")
+            if st.session_state.coordinates:
+                for i, (lat, lon) in enumerate(st.session_state.coordinates, 1):
+                    st.write(f"{i}. {decimal_to_gms(lat)} {decimal_to_gms(lon, is_latitude=False)}")
+            else:
+                st.info("Nenhuma coordenada registrada.")
 
-elif menu == "Exportar KMZ":
-    st.header("Exportar KMZ")
-    if st.button("Exportar KMZ"):
-        kmz_buffer = exportar_kmz()
-        if kmz_buffer:
-            st.download_button(label="Download KMZ", data=kmz_buffer, file_name="poligono.kmz", mime="application/vnd.google-earth.kmz")
+    elif operacao == "Gerar Polígono":
+        st.subheader("Gerar Polígono")
+        if st.button("Gerar Polígono"):
+            mapa = gerar_poligono()
+            if mapa:
+                mapa_html = mapa._repr_html_()
+                st.components.v1.html(mapa_html, height=500)
 
-elif menu == "Limpar Coordenadas":
-    st.header("Limpar Coordenadas")
-    if st.button("Limpar Coordenadas"):
-        limpar()
-        st.success("Coordenadas limpas!")
+    elif operacao == "Exportar KMZ":
+        st.subheader("Exportar KMZ")
+        if st.button("Exportar KMZ"):
+            kmz_buffer = exportar_kmz()
+            if kmz_buffer:
+                st.download_button(label="Download KMZ", data=kmz_buffer, file_name="poligono.kmz", mime="application/vnd.google-earth.kmz")
 
+    elif operacao == "Limpar Coordenadas":
+        st.subheader("Limpar Coordenadas")
+        if st.button("Limpar Coordenadas"):
+            limpar()
+            st.success("Coordenadas limpas!")
+
+# ============================================
+# Código do Formulário RIT
+# ============================================
+
+def formulario_rit():
+    st.header("Formulário de Relatório de Informações Técnicas (RIT)")
+
+    # Cabeçalho
+    rit_num = st.text_input("RIT Nº")
+    data = st.date_input("Data")
+
+    # Referência
+    st.subheader("Referência")
+    opm = st.text_input("OPM")
+    municipio = st.text_input("Município")
+    tipo_area = st.selectbox("Tipo de Área", ["Urbana", "Rural"])
+    endereco = st.text_input("Endereço")
+    numeral = st.text_input("Número")
+    complemento = st.text_input("Complemento")
+    ponto_referencia = st.text_input("Ponto de Referência")
+    latitude = st.text_input("Latitude do Acesso")
+    documento_referencia = st.text_input("Documento de Referência")
+    auto_referencia = st.text_input("Auto de Referência (Data/Hora Serviço)")
+    numero_car = st.text_input("Número do CAR")
+    autorizacoes = st.text_input("Autorizações")
+    tipo_bioma = st.text_input("Tipo de Bioma")
+    embargo = st.text_input("Embargo Imposto na Área")
+    area = st.number_input("Área em Hectares (ha)", min_value=0.0)
+
+    # Fontes de Dados
+    st.subheader("Fontes de Dados")
+    fontes_dados = st.text_area("Insira as fontes de dados utilizadas")
+
+    # Localização da Área / Ponto de Acesso
+    st.subheader("Localização da Área / Ponto de Acesso")
+    escala = st.text_input("Escala")
+    centroide_lat = st.text_input("Centróide (Latitude)")
+    centroide_lon = st.text_input("Centróide (Longitude)")
+    fonte = st.text_input("Fonte")
+
+    # Análise
+    st.subheader("Análise")
+    analise = st.text_area("Insira sua análise")
+
+    if st.button("Enviar"):
+        st.success("Formulário enviado!")
+
+# ============================================
+# Função principal com navegação no sidebar
+# ============================================
+def main():
+    st.sidebar.title("Navegação")
+    opcao = st.sidebar.radio("Escolha uma opção:", ["Extrator", "RIT"])
+
+    if opcao == "Extrator":
+        extrator()
+    elif opcao == "RIT":
+        formulario_rit()
+
+if __name__ == "__main__":
+    main()
