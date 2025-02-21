@@ -5,6 +5,9 @@ import re
 import folium
 from simplekml import Kml
 from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import datetime
 
 # ============================================
 # Código do Extrator (não alterado)
@@ -165,15 +168,77 @@ def extrator():
             st.success("Coordenadas limpas!")
 
 # ============================================
+# Função para gerar o PDF do RIT
+# ============================================
+def gerar_pdf_rit(
+    rit_num, data, opm, municipio, tipo_area, endereco, numeral, complemento, 
+    ponto_referencia, latitude, documento_referencia, auto_referencia, 
+    numero_car, autorizacoes, tipo_bioma, embargo, area, fontes_dados, 
+    escala, centroide_lat, centroide_lon, fonte, analise
+):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 50, "Relatório de Informações Técnicas (RIT)")
+
+    c.setFont("Helvetica", 10)
+    linha_atual = height - 80
+
+    def escreve_campo(label, valor):
+        nonlocal linha_atual
+        c.drawString(50, linha_atual, f"{label}: {valor}")
+        linha_atual -= 15
+
+    escreve_campo("RIT Nº", rit_num)
+    escreve_campo("Data", str(data))
+    escreve_campo("OPM", opm)
+    escreve_campo("Município", municipio)
+    escreve_campo("Tipo de Área", tipo_area)
+    escreve_campo("Endereço", endereco)
+    escreve_campo("Número", numeral)
+    escreve_campo("Complemento", complemento)
+    escreve_campo("Ponto de Referência", ponto_referencia)
+    escreve_campo("Latitude do Acesso", latitude)
+    escreve_campo("Documento de Referência", documento_referencia)
+    escreve_campo("Auto de Referência (Data/Hora Serviço)", auto_referencia)
+    escreve_campo("Número do CAR", numero_car)
+    escreve_campo("Autorizações", autorizacoes)
+    escreve_campo("Tipo de Bioma", tipo_bioma)
+    escreve_campo("Embargo Imposto na Área", embargo)
+    escreve_campo("Área (ha)", str(area))
+    escreve_campo("Fontes de Dados", fontes_dados)
+    escreve_campo("Escala", escala)
+    escreve_campo("Centróide (Latitude)", centroide_lat)
+    escreve_campo("Centróide (Longitude)", centroide_lon)
+    escreve_campo("Fonte", fonte)
+
+    linha_atual -= 10
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, linha_atual, "Análise:")
+    linha_atual -= 15
+    c.setFont("Helvetica", 10)
+
+    for linha in analise.split("\n"):
+        c.drawString(60, linha_atual, linha)
+        linha_atual -= 12
+
+    c.showPage()
+    c.save()
+
+    buffer.seek(0)
+    return buffer
+
+# ============================================
 # Código do Formulário RIT
 # ============================================
-
 def formulario_rit():
     st.header("Formulário de Relatório de Informações Técnicas (RIT)")
 
     # Cabeçalho
     rit_num = st.text_input("RIT Nº")
-    data = st.date_input("Data")
+    data = st.date_input("Data", datetime.date.today())
 
     # Referência
     st.subheader("Referência")
@@ -208,8 +273,20 @@ def formulario_rit():
     st.subheader("Análise")
     analise = st.text_area("Insira sua análise")
 
-    if st.button("Enviar"):
-        st.success("Formulário enviado!")
+    if st.button("Gerar PDF"):
+        pdf_buffer = gerar_pdf_rit(
+            rit_num, data, opm, municipio, tipo_area, endereco, numeral, complemento,
+            ponto_referencia, latitude, documento_referencia, auto_referencia, numero_car,
+            autorizacoes, tipo_bioma, embargo, area, fontes_dados, escala, centroide_lat,
+            centroide_lon, fonte, analise
+        )
+        st.download_button(
+            label="Baixar PDF",
+            data=pdf_buffer,
+            file_name="rit.pdf",
+            mime="application/pdf"
+        )
+        st.success("PDF gerado com sucesso!")
 
 # ============================================
 # Função principal com navegação no sidebar
