@@ -164,12 +164,6 @@ def extrator():
             limpar()
             st.success("Coordenadas limpas!")
 
-import streamlit as st
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from io import BytesIO
-import datetime
-
 # --------------------------------------------
 # Função para gerar o PDF do RIT
 # --------------------------------------------
