@@ -8,6 +8,14 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import datetime
+import base64
+
+# Importações específicas do ReportLab
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib import colors
 
 # ============================================
 # Código do Extrator (não alterado)
@@ -236,57 +244,155 @@ def gerar_pdf_rit(
 def formulario_rit():
     st.header("Formulário de Relatório de Informações Técnicas (RIT)")
 
-    # Cabeçalho
+    # --- CAMPOS DO FORMULÁRIO ---
     rit_num = st.text_input("RIT Nº")
     data = st.date_input("Data", datetime.date.today())
-
-    # Referência
-    st.subheader("Referência")
     opm = st.text_input("OPM")
     municipio = st.text_input("Município")
     tipo_area = st.selectbox("Tipo de Área", ["Urbana", "Rural"])
     endereco = st.text_input("Endereço")
     numeral = st.text_input("Número")
     complemento = st.text_input("Complemento")
+    bairro = st.text_input("Bairro")
     ponto_referencia = st.text_input("Ponto de Referência")
     latitude = st.text_input("Latitude do Acesso")
+    longitude = st.text_input("Longitude do Acesso")
     documento_referencia = st.text_input("Documento de Referência")
     auto_referencia = st.text_input("Auto de Referência (Data/Hora Serviço)")
+    tcra = st.text_input("TCRA, caso houver")
     numero_car = st.text_input("Número do CAR")
     autorizacoes = st.text_input("Autorizações")
     tipo_bioma = st.text_input("Tipo de Bioma")
     embargo = st.text_input("Embargo Imposto na Área")
     area = st.number_input("Área em Hectares (ha)", min_value=0.0)
-
-    # Fontes de Dados
-    st.subheader("Fontes de Dados")
-    fontes_dados = st.text_area("Insira as fontes de dados utilizadas")
-
-    # Localização da Área / Ponto de Acesso
-    st.subheader("Localização da Área / Ponto de Acesso")
+    fontes_dados = st.text_area("Fontes de Dados")
     escala = st.text_input("Escala")
     centroide_lat = st.text_input("Centróide (Latitude)")
     centroide_lon = st.text_input("Centróide (Longitude)")
     fonte = st.text_input("Fonte")
+    analise = st.text_area("Análise")
 
-    # Análise
-    st.subheader("Análise")
-    analise = st.text_area("Insira sua análise")
+    # --- BOTÕES PARA Visualizar e Gerar PDF ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Visualizar PDF"):
+            pdf_buffer = gerar_pdf_rit_com_layout(
+                rit_num, data, opm, municipio, tipo_area, endereco, numeral,
+                complemento, bairro, ponto_referencia, latitude, longitude,
+                documento_referencia, auto_referencia, tcra, numero_car,
+                autorizacoes, tipo_bioma, embargo, area, fontes_dados,
+                escala, centroide_lat, centroide_lon, fonte, analise
+            )
+            base64_pdf = base64.b64encode(pdf_buffer.read()).decode('utf-8')
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+            pdf_buffer.seek(0)
+    with col2:
+        if st.button("Gerar PDF"):
+            pdf_buffer = gerar_pdf_rit_com_layout(
+                rit_num, data, opm, municipio, tipo_area, endereco, numeral,
+                complemento, bairro, ponto_referencia, latitude, longitude,
+                documento_referencia, auto_referencia, tcra, numero_car,
+                autorizacoes, tipo_bioma, embargo, area, fontes_dados,
+                escala, centroide_lat, centroide_lon, fonte, analise
+            )
+            st.download_button(
+                label="Baixar PDF",
+                data=pdf_buffer,
+                file_name="rit.pdf",
+                mime="application/pdf"
+            )
+            st.success("PDF gerado com sucesso!")
 
-    if st.button("Gerar PDF"):
-        pdf_buffer = gerar_pdf_rit(
-            rit_num, data, opm, municipio, tipo_area, endereco, numeral, complemento,
-            ponto_referencia, latitude, documento_referencia, auto_referencia, numero_car,
-            autorizacoes, tipo_bioma, embargo, area, fontes_dados, escala, centroide_lat,
-            centroide_lon, fonte, analise
-        )
-        st.download_button(
-            label="Baixar PDF",
-            data=pdf_buffer,
-            file_name="rit.pdf",
-            mime="application/pdf"
-        )
-        st.success("PDF gerado com sucesso!")
+def gerar_pdf_rit_com_layout(
+    rit_num, data, opm, municipio, tipo_area, endereco, numeral,
+    complemento, bairro, ponto_referencia, latitude, longitude,
+    documento_referencia, auto_referencia, tcra, numero_car,
+    autorizacoes, tipo_bioma, embargo, area, fontes_dados,
+    escala, centroide_lat, centroide_lon, fonte, analise):
+    """
+    Gera um PDF em memória usando ReportLab Platypus,
+    com cabeçalho, imagem, tabelas e texto formatado.
+    """
+    # 1) Cria buffer para armazenar o PDF em memória
+    buffer = BytesIO()
+
+    # 2) Configura o documento (margens, tamanho da página)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=30, leftMargin=30,
+        topMargin=50, bottomMargin=30
+    )
+
+    # 3) Styles (estilos) para parágrafos
+    styles = getSampleStyleSheet()
+    style_normal = styles["Normal"]
+    style_title_center = ParagraphStyle(
+        name="TitleCenter",
+        parent=styles["Title"],
+        alignment=TA_CENTER,
+        fontSize=12,
+        leading=14
+    )
+
+    # 4) Lista de elementos (parágrafos, tabelas, imagens, etc.)
+    elements = []
+
+    # 4.1) Imagem de cabeçalho (LOGO) - Ajuste o caminho e tamanho
+    elements.append(Image("Asa_Ambinetal.png", width=60, height=60, hAlign='CENTER'))
+
+    # 4.2) Cabeçalho centralizado (linhas)
+    cabecalho_linhas = [
+        "SECRETARIA DE SEGURANÇA PÚBLICA",
+        "POLÍCIA MILITAR DO ESTADO DE SÃO PAULO",
+        "COMANDO DE POLÍCIA AMBIENTAL",
+        "5° BATALHÃO DE POLÍCIA AMBIENTAL",
+        "3ª COMPANHIA DE POLÍCIA AMBIENTAL"
+    ]
+    for linha in cabecalho_linhas:
+        p = Paragraph(linha, style_title_center)
+        elements.append(p)
+
+    elements.append(Spacer(1, 20))
+
+    # 4.3) Tabela de "REFERÊNCIA" - rótulos e valores
+    table_data = [
+        ["OPM", opm, "Município", municipio],
+        ["Tipo de Área", tipo_area, "Endereço", endereco],
+        ["Número", numeral, "Complemento", complemento],
+        ["Bairro", bairro, "Ponto Ref.", ponto_referencia],
+        ["Lat. Acesso", latitude, "Long. Acesso", longitude],
+        ["Doc. Referência", documento_referencia, "Auto Referência", auto_referencia],
+        ["TCRA (se houver)", tcra, "Nº do CAR", numero_car],
+        ["Autorizações", autorizacoes, "Tipo de Bioma", tipo_bioma],
+        ["Embargo", embargo, "Área (ha)", str(area)],
+        ["Fontes de Dados", fontes_dados, "Escala", escala],
+        ["Fonte Localização", fonte, "", ""],
+    ]
+
+    col_widths = [80, 150, 80, 150]
+    tabela_referencia = Table(table_data, colWidths=col_widths)
+    tabela_referencia.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+    ]))
+
+    elements.append(Paragraph("REFERÊNCIA", styles["Heading2"]))
+    elements.append(tabela_referencia)
+    elements.append(Spacer(1, 20))
+
+    # 4.4) Análise (parágrafo)
+    elements.append(Paragraph("<b>Análise:</b>", styles["Heading3"]))
+    elements.append(Paragraph(analise.replace("\n", "<br/>"), style_normal))
+
+    # 5) Monta o documento PDF
+    doc.build(elements)
+
+    # 6) Retorna o buffer para o Streamlit
+    buffer.seek(0)
+    return buffer
 
 # ============================================
 # Função principal com navegação no sidebar
