@@ -339,9 +339,6 @@ def gerar_pdf_rit_com_layout(
     # 4) Lista de elementos (parágrafos, tabelas, imagens, etc.)
     elements = []
 
-    # 4.1) Imagem de cabeçalho (LOGO) - Ajuste o caminho e tamanho
-    elements.append(Image("Asa_Ambinetal.png", width=60, height=60, hAlign='CENTER'))
-
     # 4.2) Cabeçalho centralizado (linhas)
     cabecalho_linhas = [
         "SECRETARIA DE SEGURANÇA PÚBLICA",
