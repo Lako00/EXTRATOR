@@ -30,10 +30,6 @@ from reportlab.platypus import (
 from simplekml import Kml
 import streamlit as st
 
-# Configuração do locale para português do Brasil
-locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-
-
 styles = getSampleStyleSheet()
 
 # ==========================================
