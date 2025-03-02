@@ -29,7 +29,6 @@ from reportlab.platypus import (
 )
 from simplekml import Kml
 import streamlit as st
-
 styles = getSampleStyleSheet()
 
 # ==========================================
